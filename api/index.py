@@ -1,3 +1,5 @@
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 import json
 import urllib.parse
 import urllib.request
@@ -6,25 +8,37 @@ import ssl
 # Owner Info
 OWNER = "@RASHIK_69"
 
-def handler(request):
-    # Vercel থেকে কোয়েরি প্যারামিটার নেওয়া
-    query = urllib.parse.parse_qs(request.args)
-    
-    num = query.get("num", [""])[0]
-    name = query.get("name", [""])[0]
-    msg = query.get("msg", [""])[0]
+app = FastAPI()
 
+# CORS যাতে যেকোনো জায়গা থেকে কল করা যায়
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+async def root():
+    return {
+        "owner": OWNER,
+        "status": True,
+        "message": "CarryBee API is Live",
+        "usage": "/?num=01XXXXXXXXX&name=YourName&msg=YourBusiness"
+    }
+
+@app.get("/api/register")
+async def register(num: str = "", name: str = "", msg: str = ""):
     # ভ্যালিডেশন
     if not num or not name or not msg:
-        return {
-            "statusCode": 400,
-            "headers": {"Content-Type": "application/json; charset=utf-8"},
-            "body": json.dumps({
+        raise HTTPException(
+            status_code=400, 
+            detail={
                 "owner": OWNER,
-                "status": False,
+                "status": False, 
                 "error": "Missing parameters. Required: num, name, msg"
-            }, ensure_ascii=False, indent=4)
-        }
+            }
+        )
 
     payload = {
         "name": name,
@@ -41,7 +55,7 @@ def handler(request):
         "accept-language": "en-US,en;q=0.9",
     }
 
-    # SSL ভেরিফিকেশন ডিজেবল করা (আপনার আগের কোডের মতো)
+    # SSL ভেরিফিকেশন ডিজেবল
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -58,28 +72,21 @@ def handler(request):
             res_body = response.read().decode('utf-8')
             try:
                 json_data = json.loads(res_body)
-                json_data["owner"] = OWNER # Owner অ্যাড করা হলো
-                body = json.dumps(json_data, ensure_ascii=False, indent=4)
+                json_data["owner"] = OWNER
+                return json_data
             except json.JSONDecodeError:
-                body = json.dumps({
+                return {
                     "owner": OWNER,
                     "status": True,
                     "raw_response": res_body
-                }, ensure_ascii=False, indent=4)
-
-            return {
-                "statusCode": 200,
-                "headers": {"Content-Type": "application/json; charset=utf-8"},
-                "body": body
-            }
+                }
 
     except Exception as e:
-        return {
-            "statusCode": 500,
-            "headers": {"Content-Type": "application/json; charset=utf-8"},
-            "body": json.dumps({
+        raise HTTPException(
+            status_code=500,
+            detail={
                 "owner": OWNER,
                 "status": False,
                 "error": f"Request Error: {str(e)}"
-            }, ensure_ascii=False, indent=4)
-        }
+            }
+        )
